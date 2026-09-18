@@ -19,6 +19,14 @@ SYSTEM_PROMPT = """You are a YipitData assistant for time-constrained public inv
 You answer only from MCP tool results. If tools return an error, use the suggestions
 and retry. If data is missing, say so. Never invent tickers, KPIs, values, or dates.
 
+Minimize tool rounds. Each extra model call adds seconds of latency:
+- If the user already gave a ticker (IGC, CLD9, ACME, ...) skip search_catalog.
+- Prefer one get_company_estimates call. Pass ticker and kpi when you know them.
+- For a QTD question, set include_history=false unless they asked for trend/history.
+- Use get_qtd_snapshots only when they ask for earlier as_of dates or intra-quarter revisions.
+- Use search_catalog only when the company, sector, or KPI name is unknown.
+- Call multiple tools in one turn when you truly need more than one.
+
 Data rules you must follow:
 - Historical rows are completed fiscal quarters. QTD rows are intra-quarter snapshots.
 - Never call QTD "current" relative to today's calendar date. Always state the fiscal
@@ -79,6 +87,7 @@ class OpenAILLM:
             "model": self._model,
             "messages": messages,
             "temperature": 0.1,
+            "max_tokens": 400,
         }
         if tools:
             request["tools"] = tools
@@ -154,6 +163,20 @@ class ChatService:
         self.settings = settings
         self.llm = llm
         self.mcp_factory = mcp_factory
+        self._openai_tools: list[dict[str, Any]] | None = None
+
+    async def _openai_tools_for(self, client: Any) -> list[dict[str, Any]]:
+        if self._openai_tools is None:
+            mcp_tools = await client.list_tools()
+            self._openai_tools = mcp_tools_to_openai(mcp_tools)
+        return self._openai_tools
+
+    def _timings(self, started: float, llm_ms: float, trace: list[TraceEvent]) -> dict[str, float]:
+        return {
+            "total_ms": round((time.perf_counter() - started) * 1000, 1),
+            "llm_ms": round(llm_ms, 1),
+            "tool_ms": round(sum(event.duration_ms for event in trace), 1),
+        }
 
     async def reply(self, message: str, correlation_id: str) -> dict[str, Any]:
         if self.llm is None:
@@ -165,6 +188,8 @@ class ChatService:
         token = correlation_id_var.set(correlation_id)
         trace: list[TraceEvent] = []
         tool_calls_used = 0
+        llm_ms = 0.0
+        started_request = time.perf_counter()
         try:
             try:
                 mcp_client = self.mcp_factory()
@@ -174,12 +199,11 @@ class ChatService:
             try:
                 async with mcp_client as client:
                     try:
-                        mcp_tools = await client.list_tools()
+                        openai_tools = await self._openai_tools_for(client)
                     except Exception as exc:
                         raise MCPUnavailable(
                             f"Could not list MCP tools at {self.settings.mcp_url}: {exc}"
                         ) from exc
-                    openai_tools = mcp_tools_to_openai(mcp_tools)
                     messages: list[dict[str, Any]] = [
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": message},
@@ -187,7 +211,9 @@ class ChatService:
 
                     for round_index in range(self.settings.max_tool_rounds):
                         try:
+                            llm_started = time.perf_counter()
                             turn = await self.llm.complete(messages, openai_tools)
+                            llm_ms += (time.perf_counter() - llm_started) * 1000
                         except APIError as exc:
                             return {
                                 "ok": False,
@@ -195,6 +221,7 @@ class ChatService:
                                 "message": f"The language model request failed: {exc}",
                                 "answer": None,
                                 "trace": [event.as_dict() for event in trace],
+                                "timings": self._timings(started_request, llm_ms, trace),
                                 "correlation_id": correlation_id,
                             }
                         except Exception as exc:
@@ -204,6 +231,7 @@ class ChatService:
                                 "message": f"The language model request failed: {exc}",
                                 "answer": None,
                                 "trace": [event.as_dict() for event in trace],
+                                "timings": self._timings(started_request, llm_ms, trace),
                                 "correlation_id": correlation_id,
                             }
 
@@ -218,6 +246,7 @@ class ChatService:
                                 "ok": True,
                                 "answer": answer,
                                 "trace": [event.as_dict() for event in trace],
+                                "timings": self._timings(started_request, llm_ms, trace),
                                 "correlation_id": correlation_id,
                                 "rounds": round_index + 1,
                             }

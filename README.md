@@ -113,6 +113,21 @@ Open **http://127.0.0.1:5173/** in the browser. Prefer `127.0.0.1` over `localho
 
 If `OPENAI_API_KEY` is empty, the UI shows a setup banner and `/api/chat` returns `503 llm_not_configured`. That is intentional.
 
+## Why chat feels slow (and how to speed it up)
+
+Postgres and MCP tools usually finish in milliseconds. Almost all wait time is **OpenAI**: each question is 2–3 sequential model calls (pick a tool → maybe another tool → write the answer). The UI waits until the last call finishes.
+
+After each answer the UI shows `model Xs · tools Yms`. If model is seconds and tools are ~10ms, the database is not the problem.
+
+What helps locally:
+
+1. Keep `OPENAI_MODEL=gpt-4o-mini` in `.env`. Do not switch to `gpt-4o` for demos.
+2. Ask with a ticker and KPI (`IGC Total Revenue 2026Q1 QTD`) so the model can skip `search_catalog` and do one tool round.
+3. Optional: set `MCP_IN_PROCESS=true` in `.env` and restart `python -m app.main`. Chat then uses an in-process FastMCP client (no HTTP handshake). You can still run the MCP server on :8001 for Cursor/Claude.
+4. A VPN or slow path to `api.openai.com` adds seconds to every round.
+
+Streaming tokens would improve *perceived* speed; the full answer still cannot appear before the last model call.
+
 ## If you closed PowerShell
 
 Nothing you `pip install`ed was deleted. Only the session died.

@@ -24,7 +24,12 @@ class ChatRequest(BaseModel):
 
 
 def make_mcp_client() -> Client:
-    return Client(get_settings().mcp_url)
+    settings = get_settings()
+    if settings.mcp_in_process:
+        from app.mcp_server import mcp
+
+        return Client(mcp)
+    return Client(settings.mcp_url)
 
 
 def build_chat_service(settings: Settings) -> ChatService:

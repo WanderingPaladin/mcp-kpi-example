@@ -86,6 +86,9 @@ async def test_chat_tool_call_flow_with_mocked_llm(engine):
     assert result["trace"][1]["arguments"]["ticker"] == "IGC"
     assert all(event["ok"] for event in result["trace"])
     assert len(llm.calls) == 3
+    assert result["timings"]["total_ms"] >= 0
+    assert result["timings"]["llm_ms"] >= 0
+    assert result["rounds"] == 3
 
 
 @pytest.mark.asyncio

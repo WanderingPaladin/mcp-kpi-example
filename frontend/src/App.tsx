@@ -8,10 +8,18 @@ type TraceEvent = {
   error?: string;
 };
 
+type Timings = {
+  total_ms: number;
+  llm_ms: number;
+  tool_ms: number;
+};
+
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   trace?: TraceEvent[];
+  timings?: Timings;
+  rounds?: number;
   error?: boolean;
 };
 
@@ -101,6 +109,7 @@ export default function App() {
             error: true,
             content: errorMessage(payload, "The chat API returned an error."),
             trace: Array.isArray(payload.trace) ? payload.trace : undefined,
+            timings: payload.timings,
           },
         ]);
         return;
@@ -111,6 +120,8 @@ export default function App() {
           role: "assistant",
           content: payload.answer || "No answer returned.",
           trace: payload.trace,
+          timings: payload.timings,
+          rounds: payload.rounds,
         },
       ]);
     } catch (error) {
@@ -178,6 +189,13 @@ export default function App() {
             className={`msg ${message.role}${message.error ? " error" : ""}`}
           >
             {message.content}
+            {message.timings && (
+              <p className="timing">
+                {message.rounds ? `${message.rounds} model round${message.rounds === 1 ? "" : "s"} · ` : ""}
+                {(message.timings.total_ms / 1000).toFixed(1)}s total · model{" "}
+                {(message.timings.llm_ms / 1000).toFixed(1)}s · tools {message.timings.tool_ms.toFixed(0)} ms
+              </p>
+            )}
             {message.trace && message.trace.length > 0 && (
               <details className="trace">
                 <summary>Tool trace ({message.trace.length})</summary>
@@ -209,7 +227,7 @@ export default function App() {
           }}
         />
         <button type="submit" disabled={busy || !input.trim()}>
-          {busy ? "Working" : "Send"}
+          {busy ? "Waiting on model" : "Send"}
         </button>
       </form>
     </div>

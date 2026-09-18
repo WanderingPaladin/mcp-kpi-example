@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     mcp_url: str = "http://127.0.0.1:8001/mcp"
     mcp_host: str = "127.0.0.1"
     mcp_port: int = 8001
+    mcp_in_process: bool = False
     chat_host: str = "127.0.0.1"
     chat_port: int = 8000
     max_tool_rounds: int = 6

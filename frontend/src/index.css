@@ -162,6 +162,13 @@ h1 {
   border-color: rgba(224, 122, 106, 0.5);
 }
 
+.timing {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: normal;
+}
+
 .trace {
   margin-top: 10px;
   border-top: 1px solid var(--line);
