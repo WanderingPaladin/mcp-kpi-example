@@ -1,0 +1,1 @@
+"""Investor KPI assistant backend."""

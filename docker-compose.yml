@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: kpi-postgres
+    environment:
+      POSTGRES_USER: kpi
+      POSTGRES_PASSWORD: kpi
+      POSTGRES_DB: kpi
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kpi -d kpi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - kpi_pgdata:/var/lib/postgresql/data
+
+volumes:
+  kpi_pgdata:
