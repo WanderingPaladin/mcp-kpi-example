@@ -1,3 +1,5 @@
+Anonymous review PDFs and a Greenhouse-ready ZIP (no candidate name, no `.env`) live in `submission/`. Rebuild with `python submission/build_pdfs.py` and `python submission/pack_zip.py`.
+
 # Investor KPI Assistant
 
 Chat UI for public-investor KPI estimates. A customer asks a question, an LLM calls read-only MCP tools, and the answer is grounded in PostgreSQL. External clients (Cursor, Claude Desktop, FastMCP) can attach to the MCP server directly.

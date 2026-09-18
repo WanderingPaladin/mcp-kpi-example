@@ -14,3 +14,4 @@ dist/
 backend/.venv/
 frontend/dist/
 frontend/node_modules/
+submission/EMAIL-DRAFTS-DO-NOT-UPLOAD.txt
